@@ -2,78 +2,107 @@
 
 Solana low-margin arbitrage research, paper-trading engine and local trading control center.
 
-> **Safety:** the project starts in paper mode. Live transaction submission is disabled until the execution layer, simulation, risk controls and profitability validation are complete.
+> **Safety:** the project starts in paper mode. Live transaction submission remains disabled. The new execution path includes real RPC market telemetry, quote adapters, risk gates, transaction simulation and performance telemetry, but a profitable direct multi-venue atomic swap path must be validated before real-money trading.
 
-## Architecture
+## Current four-phase implementation
 
-- `src/` — TypeScript trading engine, strategy, risk, Solana and persistence layers.
-- `src/api/` — local control/telemetry API on `127.0.0.1:8787`.
-- `apps/web/` — Next.js trading dashboard.
-- PostgreSQL — durable opportunities, trades and engine events.
-- Redis — low-latency runtime state and settings broadcast.
+### Phase 1 — Real market/RPC data
+- Solana RPC network snapshots: slot, block height and latest blockhash.
+- Optional read-only wallet balance telemetry.
+- Configurable `simulator` or `jupiter` quote provider.
+- Market snapshots persisted with provider and latency.
+- Devnet remains the default cluster.
 
-## Windows 10 local setup
+### Phase 2 — Simulation and execution safety
+- Base64 transaction simulation endpoint: `POST /api/transaction/simulate`.
+- Simulation captures errors, logs, compute units and latency.
+- Redis duplicate-opportunity locking.
+- Daily-loss and max-trade risk gates.
+- Risk decisions are persisted for auditability.
+- Live trading requires both `TRADING_MODE=live` and `LIVE_TRADING_ENABLED=true`.
 
-### 1. Trader
+### Phase 3 — Execution telemetry
+- Detection → decision latency.
+- Decision → simulation latency.
+- Simulation/submit/confirmation slots are ready in the schema for the live executor.
+- Execution attempts are stored independently from paper trades.
 
-From the repository root:
+### Phase 4 — P&L and dashboard analytics
+- Realized/expected P&L summary.
+- Win rate and average trade.
+- Hourly P&L series through `/api/analytics/pnl`.
+- Latency summary through `/api/analytics/latency`.
+- Dashboard network, wallet, risk and latency panels.
 
-```powershell
+## Local setup
+
+### 1. Start PostgreSQL + Redis
+
+```bash
+docker compose up -d
+```
+
+Use these local values:
+
+```env
+DATABASE_URL=postgresql://soltrader:soltrader_password@localhost:5432/soltrader
+REDIS_URL=redis://localhost:6379
+```
+
+### 2. Configure the trader
+
+Copy `.env.example` to `.env` and keep the safe defaults:
+
+```env
+SOLANA_CLUSTER=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
+TRADING_MODE=paper
+QUOTE_PROVIDER=simulator
+LIVE_TRADING_ENABLED=false
+```
+
+Never commit `.env`, seed phrases, private keys, wallet JSON files or RPC credentials.
+
+### 3. Start trader
+
+```bash
 npm install
 npm run typecheck
 npm test
 npm run dev
 ```
 
-The trader expects:
+API: `http://127.0.0.1:8787`
 
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/soltrader
-REDIS_URL=redis://localhost:6379
-```
+### 4. Start dashboard
 
-The API will be available at `http://127.0.0.1:8787`.
-
-### 2. Web dashboard
-
-Open a second PowerShell window:
-
-```powershell
+```bash
 cd apps/web
 npm install
+npm run build
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Dashboard: `http://localhost:3000`
 
-If needed, create `apps/web/.env.local`:
+## Real quote mode
 
-```env
-TRADER_API_URL=http://127.0.0.1:8787
-```
+Set `QUOTE_PROVIDER=jupiter` and configure `JUPITER_API_URL`/`JUPITER_API_KEY` for an endpoint that supports the selected cluster. The adapter is read-only and records quotes; the arbitrage scanner still requires multiple independently priced venues before it can approve a trade.
 
-## Dashboard
+## Devnet testing
 
-The control center includes:
+Use a dedicated Devnet wallet only. Fund it with Devnet SOL through the Solana faucet or CLI. Do not reuse a mainnet private key for development.
 
-- bot status, pause/resume and emergency stop controls
-- 24-hour P&L and expected P&L
-- opportunity and paper-trade counters
-- engine event stream
-- execution health
-- runtime strategy settings
-- Redis-backed settings updates
+The Solana public RPC is rate-limited, so production should use a dedicated/private RPC endpoint.
 
-## Development roadmap
+## Architecture
 
-1. Market-data and quote adapters.
-2. Jupiter route/quote integration.
-3. Multi-venue opportunity scanner.
-4. Net-profit and price-impact model.
-5. Paper execution engine.
-6. Historical performance analytics.
-7. Direct DEX integrations and atomic transaction builder.
-8. Transaction simulation and hardened execution.
-9. Live micro-trading only after paper/simulation validation.
+- `src/` — TypeScript trading engine, strategy, risk, Solana and persistence layers.
+- `src/api/` — local control/telemetry API on `127.0.0.1:8787`.
+- `apps/web/` — Next.js trading dashboard.
+- PostgreSQL — durable opportunities, trades, market snapshots, risk events and execution telemetry.
+- Redis — low-latency runtime state, settings and duplicate locks.
 
-Never commit `.env`, wallet seed phrases, private keys or RPC credentials.
+## Next execution milestone
+
+The remaining production-critical milestone is the **direct multi-venue atomic transaction builder**: integrate supported DEX instruction builders, calculate exact token decimals/price impact/priority fees, compose the full buy→sell transaction, simulate it on the target cluster, and only then add a separately guarded live submitter.
