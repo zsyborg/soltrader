@@ -1,0 +1,25 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Dashboard = { state:{status:string;mode:string}; opportunities:{count:number;active:number}; trades:{count:number;successful:number}; pnl:{realized:string;expected:string}; events:Array<{id:number;level:string;event_type:string;payload:Record<string,unknown>;created_at:string}> };
+
+const money=(v:string|number)=>`$${Number(v||0).toFixed(2)}`;
+
+export default function Home(){
+ const [data,setData]=useState<Dashboard|null>(null); const [error,setError]=useState("");
+ async function load(){try{const r=await fetch("/api/dashboard",{cache:"no-store"}); if(!r.ok) throw new Error("Trader API unavailable"); setData(await r.json()); setError("")}catch(e){setError(e instanceof Error?e.message:"Unable to load dashboard")}}
+ async function control(status:string){await fetch("/api/bot/control",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({status})});load()}
+ useEffect(()=>{load();const t=setInterval(load,3000);return()=>clearInterval(t)},[]);
+ const d=data;
+ return <div className="shell"><aside className="sidebar"><div className="brand">SOL<span>TRADER</span></div><nav className="nav"><a className="active" href="#">Dashboard</a><a href="#opportunities">Opportunities</a><a href="#trades">Trades</a><a href="#performance">Performance</a><a href="#settings">Settings</a><a href="#events">Events</a></nav></aside><main className="main">
+  <header className="top"><div><div className="eyebrow">Trading control center</div><div className="title">SolTrader</div></div><div className="controls"><div className="status"><span className="dot"/> {d?.state.status?.toUpperCase()??"CONNECTING"} · {d?.state.mode?.toUpperCase()??"PAPER"}</div><button className="btn" onClick={()=>control(d?.state.status==="running"?"paused":"running")}>{d?.state.status==="running"?"Pause":"Resume"}</button><button className="btn danger" onClick={()=>control("stopped")}>Emergency Stop</button></div></header>
+  {error&&<div className="card error">{error}. Start the trader API and refresh.</div>}
+  <section className="grid"><Metric label="24h P&L" value={money(d?.pnl.realized??"0")} positive/><Metric label="Expected P&L" value={money(d?.pnl.expected??"0")} /><Metric label="Opportunities" value={String(d?.opportunities.count??0)} sub={`${d?.opportunities.active??0} active`} /><Metric label="Paper trades" value={String(d?.trades.count??0)} sub={`${d?.trades.successful??0} completed`} /></section>
+  <section id="performance" className="section"><div className="section-head"><h2>Performance</h2><span className="muted">Live data · refresh 3s</span></div><div className="panel-grid"><div className="card"><div className="label">REALIZED P&L</div><div className={`metric ${(Number(d?.pnl.realized??0)>=0)?"positive":"negative"}`}>{money(d?.pnl.realized??"0")}</div><div className="chart">P&L history will populate as paper trades are executed.</div></div><div className="card"><div className="label">EXECUTION HEALTH</div><div className="setting"><span>Mode</span><strong>{d?.state.mode??"—"}</strong></div><div className="setting"><span>Opportunities / 24h</span><strong>{d?.opportunities.count??0}</strong></div><div className="setting"><span>Trades / 24h</span><strong>{d?.trades.count??0}</strong></div></div></div></section>
+  <section id="opportunities" className="section"><div className="section-head"><h2>Recent opportunities</h2></div><div className="card"><table className="table"><thead><tr><th>Source</th><th>Level</th><th>Event</th><th>Time</th><th>Status</th></tr></thead><tbody>{(d?.events??[]).map(e=><tr key={e.id}><td>Engine</td><td>{e.level}</td><td>{e.event_type}</td><td>{new Date(e.created_at).toLocaleTimeString()}</td><td><span className={`pill ${e.level==="error"?"red":"green"}`}>{e.level}</span></td></tr>)}{!d?.events.length&&<tr><td colSpan={5} className="muted">No events yet. The opportunity scanner will appear here as it starts producing data.</td></tr>}</tbody></table></div></section>
+  <section id="settings" className="section"><div className="section-head"><h2>Strategy settings</h2><span className="muted">Configured by environment for now</span></div><div className="card"><Setting label="Minimum profit" value="30 bps"/><Setting label="Maximum slippage" value="20 bps"/><Setting label="Maximum trade" value="$100"/><Setting label="Maximum daily loss" value="$25"/><Setting label="Minimum liquidity" value="$10,000"/></div></section>
+ </main></div>
+}
+function Metric({label,value,sub,positive}:{label:string;value:string;sub?:string;positive?:boolean}){return <div className="card"><div className="label">{label}</div><div className={`metric ${positive?"positive":""}`}>{value}</div>{sub&&<div className="sub">{sub}</div>}</div>}
+function Setting({label,value}:{label:string;value:string}){return <div className="setting"><span>{label}</span><input value={value} readOnly/></div>}
