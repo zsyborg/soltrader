@@ -6,8 +6,10 @@ import { getRedisClient } from "../storage/redis.js";
 import { getRuntimeSettings, setRuntimeSettings, type RuntimeSettings } from "../config/runtime-settings.js";
 import type { TraderLoop } from "../engine/trader-loop.js";
 import { SolanaRpcService } from "../solana/rpc-service.js";
+import { SolanaWallet } from "../solana/wallet.js";
 import { TransactionSimulator } from "../engine/transaction-simulator.js";
 import { getLatencySummary, getPnlSeries, getPnlSummary } from "../analytics/pnl.js";
+import type { Config } from "../config/env.js";
 
 export interface BotRuntimeState { status:"running"|"paused"|"stopped"; mode:"paper"|"simulation"|"live"; startedAt:string; }
 let state:BotRuntimeState={status:"stopped",mode:(process.env.TRADING_MODE as BotRuntimeState["mode"])||"paper",startedAt:new Date().toISOString()};
@@ -23,16 +25,21 @@ async function dashboard():Promise<Record<string,unknown>>{
  ]);
  return {state,opportunities:opps.rows[0],trades:trades.rows[0],pnl:await getPnlSummary(),latency:await getLatencySummary(),events:events.rows,latestOpportunities:latest.rows,settings:await getRuntimeSettings()};
 }
-export function startApiServer(port:number,loop:TraderLoop,rpcUrl:string):ReturnType<typeof createServer>{
- const rpc=new SolanaRpcService(rpcUrl);const simulator=new TransactionSimulator(rpcUrl);
+export function startApiServer(port:number,loop:TraderLoop,rpcUrl:string,config?:Config):ReturnType<typeof createServer>{
+ const rpc=new SolanaRpcService(rpcUrl);const simulator=new TransactionSimulator(rpcUrl);const wallet=config?new SolanaWallet(config):null;
  const server=createServer(async(req,res)=>{try{
   const url=new URL(req.url??"/",`http://${req.headers.host??"localhost"}`);
   if(req.method==="OPTIONS")return json(res,204,{});
   if(url.pathname==="/health")return json(res,200,{ok:true,state});
   if(url.pathname==="/api/solana"&&req.method==="GET"){
    const snapshot=await rpc.getSnapshot();
-   const wallet=process.env.SOLANA_WALLET_ADDRESS;const balance=wallet?await rpc.getBalance(wallet):null;
-   return json(res,200,{cluster:process.env.SOLANA_CLUSTER??"devnet",rpcUrl,slot:snapshot.slot.toString(),blockHeight:snapshot.blockHeight?.toString(),blockhash:snapshot.blockhash,walletAddress:wallet??null,balanceLamports:balance?.toString()??null,liveTradingEnabled:process.env.LIVE_TRADING_ENABLED==="true"});
+   const walletAddress=config?.solanaWalletAddress??(wallet?((await wallet.getSnapshot()).address):undefined);const balance=walletAddress?await rpc.getBalance(walletAddress):null;
+   return json(res,200,{cluster:config?.cluster??process.env.SOLANA_CLUSTER??"devnet",rpcUrl,slot:snapshot.slot.toString(),blockHeight:snapshot.blockHeight?.toString(),blockhash:snapshot.blockhash,walletAddress:walletAddress??null,balanceLamports:balance?.toString()??null,liveTradingEnabled:config?.liveTradingEnabled??process.env.LIVE_TRADING_ENABLED==="true",signerConfigured:wallet?.isConfigured()??false});
+  }
+  if(url.pathname==="/api/wallet"&&req.method==="GET"){
+   if(!wallet)return json(res,503,{error:"Wallet service is not initialized"});
+   const snapshot=await wallet.getSnapshot();const balance=snapshot.address?await rpc.getBalance(snapshot.address):null;
+   return json(res,200,{...snapshot,balanceLamports:balance?.toString()??null,signingEnabled:snapshot.configured,liveExecutionEnabled:config?.liveTradingEnabled===true&&config.tradingMode==="live"});
   }
   if(url.pathname==="/api/dashboard"&&req.method==="GET")return json(res,200,await dashboard());
   if(url.pathname==="/api/analytics/pnl"&&req.method==="GET")return json(res,200,{summary:await getPnlSummary(Number(url.searchParams.get("hours")??24)),series:await getPnlSeries(Number(url.searchParams.get("hours")??24))});
