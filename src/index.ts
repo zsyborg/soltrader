@@ -15,11 +15,12 @@ async function main(): Promise<void> {
   await initializeDatabase();
   await checkRedis(config.redisUrl);
   const loop = new TraderLoop(config);
-  const server = startApiServer(config.apiPort, loop, config.solanaRpcUrl);
-  logger.info({ mode: config.tradingMode, cluster: config.cluster, rpc: config.solanaRpcUrl, apiPort: config.apiPort }, "soltrader starting");
+  const server = startApiServer(config.apiPort, loop, config.solanaRpcUrl, config);
+  logger.info({ mode: config.tradingMode, cluster: config.cluster, rpc: config.solanaRpcUrl, apiPort: config.apiPort, walletConfigured: Boolean(config.walletKeypairPath) }, "soltrader starting");
   const slot = await getCurrentSlot(config.solanaRpcUrl);
   logger.info({ slot: slot.toString() }, "connected to Solana RPC");
-  logger.info("trading loop ready; live transaction submission remains disabled");
+  logger.info({ wallet: config.solanaWalletAddress ?? "derived from keypair when configured" }, "wallet configuration loaded");
+  logger.info("trading loop ready; live transaction submission remains disabled until explicitly enabled");
   const shutdown = async (signal: string) => { logger.info({ signal }, "shutting down"); loop.stop(); server.close(); await closeRedis(); await closePostgres(); };
   process.once("SIGINT", () => void shutdown("SIGINT")); process.once("SIGTERM", () => void shutdown("SIGTERM"));
 }
