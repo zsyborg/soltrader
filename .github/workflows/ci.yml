@@ -7,25 +7,33 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  trader:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Install dependencies
+      - name: Install trader dependencies
         run: npm install
-
-      - name: Type-check
+      - name: Type-check trader
         run: npm run typecheck
-
-      - name: Test
+      - name: Test trader
         run: npm test
+      - name: Build trader
+        run: npm run build
 
-      - name: Build
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        run: npm install
+      - name: Build dashboard
         run: npm run build
