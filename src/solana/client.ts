@@ -1,11 +1,1 @@
-import { createClient } from "@solana/kit";
-import { solanaRpc } from "@solana/kit-plugin-rpc";
-
-export function createSolanaClient(rpcUrl: string) {
-  return createClient().use(solanaRpc({ rpcUrl }));
-}
-
-export async function getCurrentSlot(rpcUrl: string): Promise<bigint> {
-  const client = createSolanaClient(rpcUrl);
-  return await client.rpc.getSlot().send();
-}
+export async function getCurrentSlot(rpcUrl:string):Promise<bigint>{const response=await fetch(rpcUrl,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:Date.now(),method:"getSlot",params:[{commitment:"processed"}]})});if(!response.ok)throw new Error(`Solana RPC HTTP ${response.status}`);const body=await response.json() as {result?:number;error?:{message:string}};if(body.error)throw new Error(`Solana RPC: ${body.error.message}`);if(body.result===undefined)throw new Error("Solana RPC returned no slot");return BigInt(body.result)}
