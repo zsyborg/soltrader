@@ -1,88 +1,79 @@
-# soltrader
+# SolTrader
 
-A Solana low-margin arbitrage research and trading engine.
+Solana low-margin arbitrage research, paper-trading engine and local trading control center.
 
-> **Current status:** paper-trading foundation. Live transaction submission is intentionally disabled.
-
-## Strategy
-
-Soltrader looks for short-lived price discrepancies between Solana liquidity venues and only considers an opportunity executable when the expected edge remains positive after:
-
-- swap fees
-- price impact
-- estimated network fees
-- priority fees
-- configurable slippage allowance
-- safety margin
-
-The initial milestone is to collect and evaluate opportunities without risking funds.
+> **Safety:** the project starts in paper mode. Live transaction submission is disabled until the execution layer, simulation, risk controls and profitability validation are complete.
 
 ## Architecture
 
-```text
-Market data / quotes
-        |
-        v
-Opportunity engine
-        |
-        v
-Net-profit calculation
-        |
-        v
-Risk engine
-        |
-        v
-Paper execution
-        |
-        v
-Persistence / metrics
-```
+- `src/` — TypeScript trading engine, strategy, risk, Solana and persistence layers.
+- `src/api/` — local control/telemetry API on `127.0.0.1:8787`.
+- `apps/web/` — Next.js trading dashboard.
+- PostgreSQL — durable opportunities, trades and engine events.
+- Redis — low-latency runtime state and settings broadcast.
 
-## Tech stack
+## Windows 10 local setup
 
-- Node.js + TypeScript
-- Solana Kit (`@solana/kit`)
-- Jupiter for routing/quotes
-- PostgreSQL for durable trading data
-- Redis for low-latency ephemeral state
-- Vitest for tests
-- Docker for local infrastructure
+### 1. Trader
 
-## Safety
+From the repository root:
 
-The repository must never contain wallet private keys or seed phrases. Secrets belong in environment variables or a dedicated key-management system.
-
-Live trading will remain disabled until paper/simulation results demonstrate that the expected edge survives real execution costs.
-
-## Development
-
-```bash
+```powershell
 npm install
-cp .env.example .env
+npm run typecheck
+npm test
 npm run dev
 ```
 
-Run tests:
+The trader expects:
 
-```bash
-npm test
+```env
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/soltrader
+REDIS_URL=redis://localhost:6379
 ```
 
-Type-check:
+The API will be available at `http://127.0.0.1:8787`.
 
-```bash
-npm run typecheck
+### 2. Web dashboard
+
+Open a second PowerShell window:
+
+```powershell
+cd apps/web
+npm install
+npm run dev
 ```
 
-## Roadmap
+Open `http://localhost:3000`.
 
-1. Project foundation and configuration
-2. Solana RPC connectivity
-3. Quote/market-data adapters
-4. Opportunity detection
-5. Fee/slippage-aware net-profit engine
-6. Paper trader and persistence
-7. Transaction simulation
-8. Risk controls and kill switch
-9. Small-size live trading
-10. Latency and execution optimization
+If needed, create `apps/web/.env.local`:
+
+```env
+TRADER_API_URL=http://127.0.0.1:8787
+```
+
+## Dashboard
+
+The control center includes:
+
+- bot status, pause/resume and emergency stop controls
+- 24-hour P&L and expected P&L
+- opportunity and paper-trade counters
+- engine event stream
+- execution health
+- runtime strategy settings
+- Redis-backed settings updates
+
+## Development roadmap
+
+1. Market-data and quote adapters.
+2. Jupiter route/quote integration.
+3. Multi-venue opportunity scanner.
+4. Net-profit and price-impact model.
+5. Paper execution engine.
+6. Historical performance analytics.
+7. Direct DEX integrations and atomic transaction builder.
+8. Transaction simulation and hardened execution.
+9. Live micro-trading only after paper/simulation validation.
+
+Never commit `.env`, wallet seed phrases, private keys or RPC credentials.
