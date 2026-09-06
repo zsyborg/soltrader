@@ -8,6 +8,8 @@ export interface Config {
   logLevel: string;
   solanaRpcUrl: string;
   solanaWsUrl?: string;
+  databaseUrl: string;
+  redisUrl: string;
   minProfitBps: number;
   maxSlippageBps: number;
   minLiquidityUsd: number;
@@ -61,6 +63,8 @@ export function loadConfig(): Config {
     logLevel: required("LOG_LEVEL", "info"),
     solanaRpcUrl: required("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com"),
     ...(process.env.SOLANA_WS_URL ? { solanaWsUrl: process.env.SOLANA_WS_URL } : {}),
+    databaseUrl: required("DATABASE_URL"),
+    redisUrl: required("REDIS_URL"),
     minProfitBps: numberEnv("MIN_PROFIT_BPS", 30),
     maxSlippageBps: numberEnv("MAX_SLIPPAGE_BPS", 20),
     minLiquidityUsd: numberEnv("MIN_LIQUIDITY_USD", 10_000),
