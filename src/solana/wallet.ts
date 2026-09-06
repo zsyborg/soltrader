@@ -1,5 +1,7 @@
-import { signerFromFile, type SolanaSigner } from "@solana/kit-plugin-signer";
+import { signerFromFile } from "@solana/kit-plugin-signer";
 import type { Config } from "../config/env.js";
+
+type WalletSigner = Awaited<ReturnType<typeof signerFromFile>>;
 
 export interface WalletSnapshot {
   configured: boolean;
@@ -9,7 +11,7 @@ export interface WalletSnapshot {
 }
 
 export class SolanaWallet {
-  private signer: SolanaSigner | null = null;
+  private signer: WalletSigner | null = null;
 
   constructor(private readonly config: Config) {}
 
@@ -17,7 +19,7 @@ export class SolanaWallet {
     return Boolean(this.config.walletKeypairPath);
   }
 
-  async getSigner(): Promise<SolanaSigner> {
+  async getSigner(): Promise<WalletSigner> {
     if (this.signer) return this.signer;
     if (!this.config.walletKeypairPath) {
       throw new Error("SOLANA_KEYPAIR_PATH is not configured");
