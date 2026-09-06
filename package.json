@@ -1,0 +1,31 @@
+{
+  "name": "soltrader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solana low-margin arbitrage research and paper-trading engine",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@solana/kit": "^7.0.0",
+    "@solana/kit-plugin-rpc": "^0.13.0",
+    "@solana/kit-plugin-signer": "^0.13.0",
+    "dotenv": "^17.0.0",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.0.0"
+  }
+}
